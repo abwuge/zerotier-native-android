@@ -249,6 +249,46 @@ esac
             ip("rule", "del", "pref", "14000")
 
 
+class KernelSUCommandTests(unittest.TestCase):
+    def setUp(self):
+        self.original_path = os.environ["PATH"]
+        self.magisk_busybox = Path("/data/adb/magisk/busybox")
+        self.magisk_busybox.rename(self.magisk_busybox.with_suffix(".disabled"))
+        self.system_cli = Path("/system/bin/zerotier-cli")
+        self.system_cli.rename(self.system_cli.with_suffix(".disabled"))
+        self.directory = Path("/data/adb/ksu/bin")
+        self.directory.mkdir(parents=True, exist_ok=True)
+        (self.directory / "busybox").symlink_to("/bin/busybox")
+        os.environ["PATH"] += ":" + str(self.directory)
+
+    def tearDown(self):
+        service("stop")
+        for name in ("busybox", "zerotier-cli"):
+            (self.directory / name).unlink(missing_ok=True)
+        self.magisk_busybox.with_suffix(".disabled").rename(self.magisk_busybox)
+        self.system_cli.with_suffix(".disabled").rename(self.system_cli)
+        os.environ["PATH"] = self.original_path
+
+    def test_native_cli_without_a_system_mount_and_uninstall_cleanup(self):
+        service("start")
+        eventually(lambda: (self.directory / "zerotier-cli").exists() and cli("status").returncode == 0, timeout=20)
+        self.assertEqual(str(self.directory / "zerotier-cli"), shutil.which("zerotier-cli"))
+        self.assertIn("1.16.2", cli("-v").stdout)
+        result = command("/bin/busybox", "sh", str(MODULE / "uninstall.sh"), check=False)
+        self.assertEqual(0, result.returncode)
+        self.assertFalse((self.directory / "zerotier-cli").exists())
+        self.assertTrue((HOME / "identity.secret").exists())
+
+    def test_existing_command_is_preserved(self):
+        existing = self.directory / "zerotier-cli"
+        existing.write_text("another installation")
+        service("start")
+        eventually(lambda: (HOME / "service.log").exists() and "belongs to another installation" in (HOME / "service.log").read_text())
+        self.assertEqual("another installation", existing.read_text())
+        command("/bin/busybox", "sh", str(MODULE / "uninstall.sh"))
+        self.assertEqual("another installation", existing.read_text())
+
+
 class SupervisorTests(unittest.TestCase):
     def tearDown(self):
         service("stop")

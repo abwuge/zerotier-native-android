@@ -35,6 +35,7 @@ if [ ! -c /dev/net/tun ] && [ ! -c /dev/tun ]; then
     echo 'TUN/TAP device is missing; enable CONFIG_TUN in the device kernel.'
     exit 1
 fi
+zt_publish_cli || exit 1
 
 "$ZT_BB" sh "$MODDIR/routes.sh" "$$" 9>&- &
 adapter_pid=$!

@@ -2,11 +2,11 @@
 
 在已 Root 的 Android 上运行原生 ZeroTier 守护进程，不占用 `VpnService`。
 
-模块采用 Magisk、KernelSU 和 APatch 的模块格式，面向 ARM64 设备，要求内核支持 TUN/TAP，并提供 `/system/bin/ip`。`zerotier-cli` 通过 Root 管理器的 systemless 挂载加入系统命令；采用 metamodule 架构的 KernelSU 需要启用挂载类 metamodule。
+模块采用 Magisk、KernelSU 和 APatch 的模块格式，面向 ARM64 设备，要求内核支持 TUN/TAP，并提供 `/system/bin/ip`。Magisk 和 APatch 通过 systemless 挂载提供 `zerotier-cli`；KernelSU 使用其已有的 Root 命令目录，无需额外安装挂载模块。
 
 ## 安装与入网
 
-1. 在 Root 管理器中安装 `dist/zerotier-native-0.1.3-arm64.zip`，然后重启。
+1. 在 Root 管理器中安装 `dist/zerotier-native-0.1.4-arm64.zip`，然后重启。
 2. 打开终端，取得 Root 后使用原生 ZeroTier 命令：
 
 ```sh
