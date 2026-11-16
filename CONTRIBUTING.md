@@ -6,7 +6,7 @@
 
 ## 本地构建与测试
 
-推荐在 ARM64 Linux 或 Apple Silicon macOS 上开发。需要 Python 3、curl、Docker 和 ShellCheck，构建前启动 Docker。
+推荐在 ARM64 Linux 或 Apple Silicon macOS 上开发。需要 Python 3、curl、Docker 和 ShellCheck 0.11.0，构建前启动 Docker。
 
 ```sh
 ./build.sh
@@ -48,4 +48,4 @@ git tag -a "v$version" -m '填写面向用户的版本说明'
 git push origin "v$version"
 ```
 
-CI 会检查标签与模块版本是否一致，在 ARM64 runner 上构建并测试，再使用标签说明创建 GitHub Release 并附上安装包。普通分支和 Pull Request 执行构建与测试，安装包保存在对应 Actions 运行的 artifacts 中。
+CI 会检查标签与模块版本是否一致，在 ARM64 runner 上构建并测试，再使用标签说明创建 GitHub Release 并附上安装包。`main` 分支推送和 Pull Request 执行构建与测试，安装包保存在对应 Actions 运行的 artifacts 中。
