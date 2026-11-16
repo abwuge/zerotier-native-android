@@ -78,10 +78,31 @@ jobs:
           git for-each-ref --format='%(contents)' "refs/tags/$GITHUB_REF_NAME" \
             | sed '/^-----BEGIN .*SIGNATURE-----/,$d' > "$RUNNER_TEMP/release-notes.md"
 
+      - name: Generate module update metadata
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          properties = dict(line.split('=', 1) for line in Path('module/module.prop').read_text().splitlines() if '=' in line)
+          package, = Path('dist').glob('*.zip')
+          base = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/releases/download/{os.environ['GITHUB_REF_NAME']}"
+          Path('dist/update.json').write_text(json.dumps({
+              'version': properties['version'],
+              'versionCode': int(properties['versionCode']),
+              'zipUrl': f'{base}/{package.name}',
+              'changelog': f'{base}/changelog.md',
+          }, indent=2) + '\n')
+          Path('dist/changelog.md').write_bytes((Path(os.environ['RUNNER_TEMP']) / 'release-notes.md').read_bytes())
+          PYTHON
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3.0.0
         with:
           name: ZeroTier Native for Android ${{ github.ref_name }}
           body_path: ${{ runner.temp }}/release-notes.md
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/update.json
+            dist/changelog.md
           fail_on_unmatched_files: true

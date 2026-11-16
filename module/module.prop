@@ -1,6 +1,7 @@
 id=zerotier-native
 name=ZeroTier Native for Android
-version=0.1.8
-versionCode=9
+version=0.1.9
+versionCode=10
 author=ZeroTier Native for Android contributors
 description=Native ZeroTier with automatic startup.
+updateJson=https://github.com/abwuge/zerotier-native-android/releases/latest/download/update.json
