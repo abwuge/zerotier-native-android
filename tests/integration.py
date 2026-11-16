@@ -82,10 +82,10 @@ class RuntimeTests(unittest.TestCase):
         self.supervisor = subprocess.Popen(["sleep", "3600"])
         self.log = open("/tmp/adapter.log", "w+")
         self.adapter = None
-        ip("link", "add", "ztabc12345", "type", "dummy")
-        ip("link", "set", "ztabc12345", "up")
-        ip("addr", "add", "10.147.17.5/24", "dev", "ztabc12345")
-        ip("-6", "addr", "add", "fd00:147:17::5/64", "dev", "ztabc12345", "nodad")
+        ip("link", "add", "ethztabc12345", "type", "dummy")
+        ip("link", "set", "ethztabc12345", "up")
+        ip("addr", "add", "10.147.17.5/24", "dev", "ethztabc12345")
+        ip("-6", "addr", "add", "fd00:147:17::5/64", "dev", "ethztabc12345", "nodad")
         ip("link", "add", "wlan0", "type", "dummy")
         ip("link", "set", "wlan0", "up")
         ip("addr", "add", "192.0.2.2/24", "dev", "wlan0")
@@ -110,7 +110,7 @@ class RuntimeTests(unittest.TestCase):
             ip(family, "rule", "del", "pref", "19500", check=False)
             ip(family, "route", "flush", "table", "19993", check=False)
         ip("rule", "del", "pref", "31000")
-        ip("link", "del", "ztabc12345", check=False)
+        ip("link", "del", "ethztabc12345", check=False)
         ip("link", "del", "ztdef12345", check=False)
         ip("link", "del", "wlan0")
 
@@ -129,20 +129,20 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn("dev wlan0", ip("route", "get", "10.147.17.8"))
         self.start_adapter()
         eventually(lambda: "10.147.17.0/24" in self.routes())
-        self.assertIn("dev ztabc12345", ip("route", "get", "10.147.17.8"))
-        self.assertIn("dev ztabc12345", ip("-6", "route", "get", "fd00:147:17::8"))
+        self.assertIn("dev ethztabc12345", ip("route", "get", "10.147.17.8"))
+        self.assertIn("dev ethztabc12345", ip("-6", "route", "get", "fd00:147:17::8"))
         self.assertIn("dev wlan0", ip("route", "get", "203.0.113.8"))
         self.assertNotIn("wlan0", self.routes())
-        ip("route", "add", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ztabc12345")
+        ip("route", "add", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ethztabc12345")
         eventually(lambda: "10.42.0.0/16 via 10.147.17.1" in self.routes())
-        ip("route", "replace", "10.42.0.0/16", "via", "10.147.17.2", "dev", "ztabc12345")
+        ip("route", "replace", "10.42.0.0/16", "via", "10.147.17.2", "dev", "ethztabc12345")
         eventually(lambda: "10.42.0.0/16 via 10.147.17.2" in self.routes())
         ip("route", "del", "10.42.0.0/16")
         eventually(lambda: "10.42.0.0/16" not in self.routes())
 
     def test_start_with_managed_gateway_routes(self):
-        ip("route", "add", "10.0.0.0/8", "via", "10.147.17.1", "dev", "ztabc12345")
-        ip("-6", "route", "add", "fd00::/16", "via", "fd00:147:17::1", "dev", "ztabc12345")
+        ip("route", "add", "10.0.0.0/8", "via", "10.147.17.1", "dev", "ethztabc12345")
+        ip("-6", "route", "add", "fd00::/16", "via", "fd00:147:17::1", "dev", "ethztabc12345")
         self.start_adapter()
         eventually(lambda: "10.0.0.0/8 via 10.147.17.1" in self.routes())
         eventually(lambda: "fd00::/16 via fd00:147:17::1" in self.routes("-6"))
@@ -174,20 +174,20 @@ class RuntimeTests(unittest.TestCase):
         ip("link", "del", "ztdef12345")
         eventually(lambda: "ztdef12345" not in self.routes())
         self.assertIsNone(self.adapter.poll())
-        self.assertIn("dev ztabc12345", ip("route", "get", "10.147.17.8"))
+        self.assertIn("dev ethztabc12345", ip("route", "get", "10.147.17.8"))
 
     def test_link_down_and_up_preserves_the_adapter(self):
-        ip("route", "add", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ztabc12345")
+        ip("route", "add", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ethztabc12345")
         self.start_adapter()
         eventually(lambda: "10.42.0.0/16" in self.routes())
-        ip("link", "set", "ztabc12345", "down")
+        ip("link", "set", "ethztabc12345", "down")
         eventually(lambda: "10.42.0.0/16" not in self.routes())
         time.sleep(1.2)
         self.assertIsNone(self.adapter.poll())
-        ip("link", "set", "ztabc12345", "up")
+        ip("link", "set", "ethztabc12345", "up")
         eventually(lambda: "10.147.17.0/24" in self.routes())
         # The upstream daemon restores managed routes in main after link-up.
-        ip("route", "replace", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ztabc12345")
+        ip("route", "replace", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ethztabc12345")
         eventually(lambda: "10.42.0.0/16" in self.routes())
 
     def test_persistent_route_apply_failure_stops_the_adapter(self):
@@ -221,9 +221,9 @@ esac
         eventually(lambda: "19500:" in ip("-6", "rule", "show"))
         ip("link", "set", "wlan0", "down")
         ip("link", "set", "wlan0", "up")
-        eventually(lambda: "dev ztabc12345" in ip("route", "get", "10.147.17.8"))
-        ip("link", "del", "ztabc12345")
-        eventually(lambda: "ztabc12345" not in self.routes() and "ztabc12345" not in self.routes("-6"))
+        eventually(lambda: "dev ethztabc12345" in ip("route", "get", "10.147.17.8"))
+        ip("link", "del", "ethztabc12345")
+        eventually(lambda: "ethztabc12345" not in self.routes() and "ethztabc12345" not in self.routes("-6"))
 
     def test_multiple_networks_linklocal_routes_and_idle(self):
         ip("link", "add", "ztdef12345", "type", "dummy")
@@ -294,7 +294,7 @@ esac
         ip("rule", "add", "pref", "16000", "fwmark", "0x64", "lookup", "1001")
         try:
             self.assertIn("dev wlan0", ip("route", "get", "10.147.17.8", "mark", "0x64"))
-            self.assertIn("dev ztabc12345", ip("route", "get", "10.147.17.8"))
+            self.assertIn("dev ethztabc12345", ip("route", "get", "10.147.17.8"))
         finally:
             ip("rule", "del", "pref", "16000")
         ip("rule", "add", "pref", "14000", "prohibit")
@@ -393,6 +393,11 @@ class SupervisorTests(unittest.TestCase):
         self.assertIn("address", json.loads(cli("-j", "status").stdout))
         network = "0123456789abcdef"
         self.assertEqual(0, cli("join", network).returncode)
+        mapping = network + "=ethzt" + network[-10:]
+        self.assertIn(mapping, (HOME / "devicemap").read_text())
+        self.assertEqual(0, service("restart").returncode)
+        eventually(lambda: cli("status").returncode == 0, timeout=20)
+        self.assertEqual(1, (HOME / "devicemap").read_text().splitlines().count(mapping))
         networks = json.loads(cli("-j", "listnetworks").stdout)
         self.assertTrue(any(n["nwid"] == network for n in networks))
         self.assertTrue((HOME / "networks.d" / (network + ".conf")).exists())

@@ -95,7 +95,7 @@ public final class NetworkAdapter {
         Set<String> present = new HashSet<>();
         for (NetworkInterface iface : Collections.list(NetworkInterface.getNetworkInterfaces())) {
             String name = iface.getName();
-            if (!name.matches("zt[0-9a-z]+") || !iface.isUp()) {
+            if (!name.matches("(zt|ethzt)[0-9a-z]+") || !iface.isUp()) {
                 continue;
             }
             LinkProperties properties;

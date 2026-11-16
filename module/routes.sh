@@ -44,7 +44,7 @@ normalize() {
                 if ($i == "linkdown") { down = 1; continue }
                 line = line (line == "" ? "" : " ") $i
             }
-            if (!overlay_only || (!down && dev ~ /^zt[0-9a-z]+$/)) print line
+            if (!overlay_only || (!down && dev ~ /^(zt|ethzt)[0-9a-z]+$/)) print line
         }
     ' | sort -u
 }

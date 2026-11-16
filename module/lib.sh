@@ -52,3 +52,24 @@ zerotier_remove_cli() {
         rm -f "$link"
     fi
 }
+
+zerotier_map_network() (
+    network=$(printf '%s' "$1" | tr 'A-F' 'a-f')
+    case "$network" in ''|*[!0-9a-f]*) return 0 ;; esac
+    [ "${#network}" = 16 ] || return 0
+    device=ethzt${network#??????}
+    exec 8>"$ZEROTIER_RUN/devicemap.lock"
+    "$ZEROTIER_BB" flock 8 || exit 1
+    touch "$ZEROTIER_HOME/devicemap"
+    # shellcheck disable=SC2016
+    "$ZEROTIER_BB" awk -F= -v network="$network" -v device="$device" '
+        $1 != network && $2 == device { conflict = 1; exit 1 }
+        $1 != network { print }
+        END { if (!conflict) print network "=" device }
+    ' "$ZEROTIER_HOME/devicemap" > "$ZEROTIER_RUN/devicemap.new" || {
+        rm -f "$ZEROTIER_RUN/devicemap.new"
+        echo "Interface name already assigned: $device" >&2
+        exit 1
+    }
+    mv -f "$ZEROTIER_RUN/devicemap.new" "$ZEROTIER_HOME/devicemap"
+)
