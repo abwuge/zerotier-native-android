@@ -1,6 +1,7 @@
 """Run inside a disposable Linux container with CAP_NET_ADMIN and no uplink."""
 
 from pathlib import Path
+import io
 import os
 import json
 import shutil
@@ -43,6 +44,8 @@ def setup_module():
     MODULE.parent.mkdir(parents=True, exist_ok=True)
     properties = dict(line.split("=", 1) for line in Path("/work/module/module.prop").read_text().splitlines() if "=" in line)
     with zipfile.ZipFile(f"/work/dist/zerotier-native-android-{properties['version']}-arm64.zip") as package:
+        with zipfile.ZipFile(io.BytesIO(package.read("bin/network.jar"))) as adapter:
+            assert "classes.dex" in adapter.namelist()
         for source in Path("/work/module").rglob("*"):
             if source.is_file():
                 assert package.read(str(source.relative_to("/work/module"))) == source.read_bytes(), "Rebuild the module before testing"
@@ -57,6 +60,13 @@ def setup_module():
     # Emulate the root manager's systemless exposure in this container only.
     shutil.copy2(MODULE / "system/bin/zerotier-cli", "/system/bin/zerotier-cli")
     os.environ["PATH"] = "/system/bin:" + os.environ["PATH"]
+    # Android framework registration is checked on the phone. Emulate only the
+    # app_process lifetime here so the real module supervisor can be exercised.
+    app_process = Path("/system/bin/app_process")
+    app_process.write_text('#!/bin/sh\n[ -r "$CLASSPATH" ] || exit 1\n'
+                           'echo "$$" > /data/adb/zerotier-native/run/android-test.pid\n'
+                           'exec sleep 3600\n')
+    app_process.chmod(0o755)
     Path("/dev/net").mkdir(exist_ok=True)
     if not Path("/dev/net/tun").exists():
         os.mknod("/dev/net/tun", 0o20600, os.makedev(10, 200))
@@ -356,6 +366,20 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(0o600, (HOME / "identity.secret").stat().st_mode & 0o777)
         self.assertFalse(any("/zerotier-native/routes.sh" in p.read_text(errors="replace")
                              for p in Path("/proc").glob("[0-9]*/cmdline") if p.exists()))
+        self.assertFalse(any("/zerotier-native/network.sh" in p.read_text(errors="replace")
+                             for p in Path("/proc").glob("[0-9]*/cmdline") if p.exists()))
+
+    def test_network_registration_process_restarts_and_stops(self):
+        pidfile = HOME / "run/android-test.pid"
+        pidfile.unlink(missing_ok=True)
+        service("start")
+        eventually(pidfile.exists)
+        first = pidfile.read_text()
+        os.kill(int(first), signal.SIGKILL)
+        eventually(lambda: pidfile.read_text() != first, timeout=12)
+        current = pidfile.read_text().strip()
+        self.assertEqual(0, service("stop").returncode)
+        self.assertFalse(Path("/proc", current).exists())
 
     def test_standard_cli_join_status_json_and_leave(self):
         self.assertEqual("/system/bin/zerotier-cli", shutil.which("zerotier-cli"))
@@ -387,7 +411,7 @@ class InstallerTests(unittest.TestCase):
             . "$MODPATH/customize.sh"
         '''
         return subprocess.run(["/bin/busybox", "sh", "-c", script],
-                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, MODPATH=str(MODULE)),
+                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, API="36", MODPATH=str(MODULE)),
                               capture_output=True, text=True, timeout=20)
 
     def test_install_permissions_and_data_preservation(self):
@@ -402,7 +426,7 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual('{"settings": {}}', config.read_text())
         self.assertEqual(0o700, HOME.stat().st_mode & 0o777)
-        for executable in ("service.sh", "routes.sh", "control.sh", "uninstall.sh", "bin/zerotier-one", "system/bin/zerotier-cli"):
+        for executable in ("service.sh", "routes.sh", "network.sh", "control.sh", "uninstall.sh", "bin/zerotier-one", "system/bin/zerotier-cli"):
             self.assertEqual(0o755, (MODULE / executable).stat().st_mode & 0o777)
         self.assertFalse((MODULE / "skip_mount").exists())
         self.assertEqual("#MAGISK", (MODULE / "META-INF/com/google/android/updater-script").read_text().strip())

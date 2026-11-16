@@ -2,7 +2,7 @@
 
 在已 Root 的 Android 上运行原生 ZeroTier，开机自动连接，不占用 Android 的 VPN 名额。
 
-支持 Magisk、KernelSU 和 APatch，适用于内核支持 TUN/TAP 的 ARM64 设备。
+支持 Magisk、KernelSU 和 APatch，适用于 Android 11 及以上、内核支持 TUN/TAP 的 ARM64 设备。
 
 ## 安装
 

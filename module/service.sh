@@ -13,13 +13,14 @@ echo "$$" > "$ZT_RUN/service.pid"
 
 daemon_pid=
 adapter_pid=
+network_pid=
 delay_pid=
 cleanup() {
     trap '' TERM INT HUP
-    for pid in "$daemon_pid" "$adapter_pid" "$delay_pid"; do
+    for pid in "$daemon_pid" "$adapter_pid" "$network_pid" "$delay_pid"; do
         [ -z "$pid" ] || kill "$pid" 2>/dev/null
     done
-    for pid in "$daemon_pid" "$adapter_pid" "$delay_pid"; do
+    for pid in "$daemon_pid" "$adapter_pid" "$network_pid" "$delay_pid"; do
         [ -z "$pid" ] || wait "$pid" 2>/dev/null
     done
     rm -f "$ZT_RUN/service.pid"
@@ -39,6 +40,9 @@ zt_publish_cli || exit 1
 
 "$ZT_BB" sh "$MODDIR/routes.sh" "$$" 9>&- &
 adapter_pid=$!
+
+"$ZT_BB" sh "$MODDIR/network.sh" 9>&- &
+network_pid=$!
 
 while [ ! -f "$MODDIR/disable" ] && [ ! -f "$MODDIR/remove" ]; do
     "$MODDIR/bin/zerotier-one" "$ZT_HOME" 9>&- &

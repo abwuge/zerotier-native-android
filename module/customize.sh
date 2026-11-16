@@ -2,12 +2,13 @@
 
 [ "$BOOTMODE" = true ] || abort 'Install from the Magisk, KernelSU, or APatch app.'
 [ "$ARCH" = arm64 ] || abort 'This package requires an ARM64 device.'
+[ "$API" -ge 30 ] || abort 'Android 11 or later is required.'
 [ -c /dev/net/tun ] || [ -c /dev/tun ] || abort 'The device kernel must provide TUN/TAP.'
 [ -x /system/bin/ip ] || abort '/system/bin/ip is required.'
 
 # Root-manager unzip may create every payload file with mode 0644.
 set_perm_recursive "$MODPATH" 0 0 0755 0644
-for script in service.sh routes.sh control.sh uninstall.sh; do
+for script in service.sh routes.sh network.sh control.sh uninstall.sh; do
     set_perm "$MODPATH/$script" 0 0 0755
 done
 set_perm "$MODPATH/bin/zerotier-one" 0 0 0755
