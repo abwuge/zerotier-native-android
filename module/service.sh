@@ -58,7 +58,7 @@ zerotier_publish_cli || exit 1
 for network_file in "$ZEROTIER_HOME"/networks.d/*.conf; do
     [ -f "$network_file" ] || continue
     network_id=${network_file##*/}
-    zerotier_map_network "${network_id%.conf}" || exit 1
+    zerotier_configure_interface_name "${network_id%.conf}" || exit 1
 done
 
 restart_loop() {

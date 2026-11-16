@@ -7,7 +7,7 @@ previous=
 for argument in "$@"; do
     if [ "$previous" = join ]; then
         zerotier_init
-        zerotier_map_network "$argument" || exit 1
+        zerotier_configure_interface_name "$argument" || exit 1
         break
     fi
     previous=$argument

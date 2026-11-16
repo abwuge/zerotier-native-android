@@ -53,22 +53,27 @@ zerotier_remove_cli() {
     fi
 }
 
-zerotier_map_network() (
-    network=$(printf '%s' "$1" | tr 'A-F' 'a-f')
-    case "$network" in ''|*[!0-9a-f]*) return 0 ;; esac
-    [ "${#network}" = 16 ] || return 0
-    device=ethzt${network#??????}
+zerotier_configure_interface_name() (
+    network_id=$(printf '%s' "$1" | tr 'A-F' 'a-f')
+    case "$network_id" in ''|*[!0-9a-f]*) return 0 ;; esac
+    [ "${#network_id}" = 16 ] || return 0
+    read -r interface_naming < "$MODDIR/interface-naming"
+    case "$interface_naming" in
+        ethernet) interface_name=ethzt${network_id#??????} ;;
+        default) interface_name= ;;
+        *) echo 'Invalid interface naming selection.' >&2; exit 1 ;;
+    esac
     exec 8>"$ZEROTIER_RUN/devicemap.lock"
     "$ZEROTIER_BB" flock 8 || exit 1
     touch "$ZEROTIER_HOME/devicemap"
     # shellcheck disable=SC2016
-    "$ZEROTIER_BB" awk -F= -v network="$network" -v device="$device" '
-        $1 != network && $2 == device { conflict = 1; exit 1 }
-        $1 != network { print }
-        END { if (!conflict) print network "=" device }
+    "$ZEROTIER_BB" awk -F= -v network_id="$network_id" -v interface_name="$interface_name" '
+        interface_name != "" && $1 != network_id && $2 == interface_name { conflict = 1; exit 1 }
+        $1 != network_id { print }
+        END { if (!conflict && interface_name != "") print network_id "=" interface_name }
     ' "$ZEROTIER_HOME/devicemap" > "$ZEROTIER_RUN/devicemap.new" || {
         rm -f "$ZEROTIER_RUN/devicemap.new"
-        echo "Interface name already assigned: $device" >&2
+        echo "Interface name already assigned: $interface_name" >&2
         exit 1
     }
     mv -f "$ZEROTIER_RUN/devicemap.new" "$ZEROTIER_HOME/devicemap"

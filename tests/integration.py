@@ -72,6 +72,9 @@ def setup_module():
                            'echo "$$" > /data/adb/zerotier-native/run/android-test.pid\n'
                            'exec sleep 3600\n')
     app_process.chmod(0o755)
+    getevent = Path("/system/bin/getevent")
+    getevent.write_text('#!/bin/sh\nprintf "EV_KEY KEY_VOLUMEUP DOWN\\n"\n')
+    getevent.chmod(0o755)
     Path("/dev/net").mkdir(exist_ok=True)
     if not Path("/dev/net/tun").exists():
         os.mknod("/dev/net/tun", 0o20600, os.makedev(10, 200))
@@ -444,6 +447,38 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(0o755, (MODULE / executable).stat().st_mode & 0o777)
         self.assertFalse((MODULE / "skip_mount").exists())
         self.assertEqual("#MAGISK", (MODULE / "META-INF/com/google/android/updater-script").read_text().strip())
+
+    def test_volume_down_restores_default_interface_names(self):
+        reader = Path("/system/bin/getevent")
+        original = reader.read_text()
+        try:
+            reader.write_text('#!/bin/sh\nprintf "EV_KEY KEY_VOLUMEDOWN DOWN\\n"\n')
+            self.assertEqual(0, self.install("arm64").returncode)
+            self.assertEqual("default", (MODULE / "interface-naming").read_text().strip())
+            service("start")
+            eventually(lambda: cli("status").returncode == 0, timeout=20)
+            network = "0123456789abcdef"
+            self.assertEqual(0, cli("join", network).returncode)
+            self.assertNotIn(network + "=", (HOME / "devicemap").read_text())
+            cli("leave", network)
+        finally:
+            reader.write_text(original)
+            (MODULE / "interface-naming").write_text("ethernet\n")
+
+    def test_volume_selection_timeout_uses_ethernet(self):
+        reader = Path("/system/bin/getevent")
+        original = reader.read_text()
+        try:
+            reader.write_text("#!/bin/sh\nexec sleep 60\n")
+            start = time.monotonic()
+            self.assertEqual(0, self.install("arm64").returncode)
+            elapsed = time.monotonic() - start
+            self.assertGreaterEqual(elapsed, 7)
+            self.assertLess(elapsed, 10)
+            self.assertEqual("ethernet", (MODULE / "interface-naming").read_text().strip())
+            self.assertFalse((MODULE / ".volume-key-events").exists())
+        finally:
+            reader.write_text(original)
 
     def test_unsupported_architecture_is_rejected(self):
         result = self.install("x86")
