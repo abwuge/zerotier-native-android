@@ -151,10 +151,50 @@ class RuntimeTests(unittest.TestCase):
             ip("addr", "add", "10.148.17.5/24", "dev", "ztdef12345")
             ip("route", "add", "10.42.0.0/16", "via", "10.148.17.1", "dev", "ztdef12345")
             ip("link", "del", "ztdef12345")
+        ip("link", "add", "ztdef12345", "type", "dummy")
+        ip("link", "set", "ztdef12345", "up")
+        ip("addr", "add", "10.148.17.5/24", "dev", "ztdef12345")
+        ip("route", "add", "10.42.0.0/16", "via", "10.148.17.1", "dev", "ztdef12345")
+        eventually(lambda: "10.42.0.0/16 via 10.148.17.1" in self.routes())
+        ip("link", "del", "ztdef12345")
         eventually(lambda: "ztdef12345" not in self.routes())
-        time.sleep(0.3)
         self.assertIsNone(self.adapter.poll())
         self.assertIn("dev ztabc12345", ip("route", "get", "10.147.17.8"))
+
+    def test_link_down_and_up_preserves_the_adapter(self):
+        ip("route", "add", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ztabc12345")
+        self.start_adapter()
+        eventually(lambda: "10.42.0.0/16" in self.routes())
+        ip("link", "set", "ztabc12345", "down")
+        eventually(lambda: "10.42.0.0/16" not in self.routes())
+        time.sleep(1.2)
+        self.assertIsNone(self.adapter.poll())
+        ip("link", "set", "ztabc12345", "up")
+        eventually(lambda: "10.147.17.0/24" in self.routes())
+        # The upstream daemon restores managed routes in main after link-up.
+        ip("route", "replace", "10.42.0.0/16", "via", "10.147.17.1", "dev", "ztabc12345")
+        eventually(lambda: "10.42.0.0/16" in self.routes())
+
+    def test_persistent_route_apply_failure_stops_the_adapter(self):
+        path = Path("/system/bin/ip")
+        path.unlink()
+        path.write_text('''#!/bin/sh
+case "$*" in
+    "-4 route append "*) echo 'route apply failed' >&2; exit 2 ;;
+    *) exec /sbin/ip "$@" ;;
+esac
+''')
+        path.chmod(0o755)
+        try:
+            self.adapter = subprocess.Popen(
+                ["/bin/busybox", "sh", str(MODULE / "routes.sh"), str(self.supervisor.pid)],
+                stdout=self.log, stderr=self.log)
+            self.assertNotEqual(0, self.adapter.wait(timeout=10))
+            self.log.seek(0)
+            self.assertIn("route apply failed", self.log.read())
+        finally:
+            path.unlink()
+            path.symlink_to("/sbin/ip")
 
     def test_rule_and_table_recovery_and_network_switch(self):
         self.start_adapter()

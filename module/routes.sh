@@ -1,4 +1,5 @@
 #!/system/bin/sh
+# shellcheck shell=busybox
 
 MODDIR=${0%/*}
 # shellcheck source=module/lib.sh
@@ -36,14 +37,14 @@ trap cleanup EXIT
 normalize() {
     awk -v overlay_only="$1" '
         {
-            dev = ""; line = ""
+            dev = ""; line = ""; down = 0
             for (i = 1; i <= NF; i++) {
                 if ($i == "dev") dev = $(i+1)
                 if ($i == "table" || $i == "proto" || $i == "expires") { i++; continue }
-                if ($i == "linkdown") continue
+                if ($i == "linkdown") { down = 1; continue }
                 line = line (line == "" ? "" : " ") $i
             }
-            if (!overlay_only || dev ~ /^zt[0-9a-z]+$/) print line
+            if (!overlay_only || (!down && dev ~ /^zt[0-9a-z]+$/)) print line
         }
     ' | sort -u
 }
@@ -88,11 +89,8 @@ sync_family() {
             # Kernel-generated words are split as ip arguments, never evaluated.
             # shellcheck disable=SC2086
             if ! "$ZT_IP" "$family" route del table "$ZT_TABLE" $route 2>"$ZT_RUN/error.routes"; then
-                # Interface deletion can remove this route after our snapshot.
-                if "$ZT_IP" "$family" -o route show table "$ZT_TABLE" 2>/dev/null | normalize 0 | grep -Fxq "$route"; then
-                    cat "$ZT_RUN/error.routes" >&2
-                    return 1
-                fi
+                sync_incomplete=2
+                sync_error=$(cat "$ZT_RUN/error.routes")
             fi
         fi
     done < "$actual"
@@ -103,11 +101,8 @@ sync_family() {
         if ! grep -Fxq "$route" "$actual"; then
             # shellcheck disable=SC2086
             if ! "$ZT_IP" "$family" route append table "$ZT_TABLE" proto "$ZT_PROTOCOL" $route 2>"$ZT_RUN/error.routes"; then
-                # Joining/leaving a network can invalidate a route mid-sync.
-                if "$ZT_IP" "$family" -o route show table main | normalize 1 | grep -Fxq "$route"; then
-                    cat "$ZT_RUN/error.routes" >&2
-                    return 1
-                fi
+                sync_incomplete=2
+                sync_error=$(cat "$ZT_RUN/error.routes")
             fi
         fi
     done < "$ZT_RUN/add.routes"
@@ -118,7 +113,10 @@ sync_family() {
 }
 
 sync_routes() {
-    sync_family -4 && sync_family -6
+    sync_incomplete=0
+    sync_error=
+    sync_family -4 && sync_family -6 || return 1
+    return "$sync_incomplete"
 }
 
 rm -f "$ZT_RUN/events"
@@ -127,9 +125,30 @@ mkfifo -m 600 "$ZT_RUN/events" || exit 1
 "$ZT_IP" -o monitor link route rule > "$ZT_RUN/events" &
 monitor_pid=$!
 exec 3<"$ZT_RUN/events"
-sync_routes || exit 1
-while IFS= read -r _event <&3; do
-    sync_routes || exit 1
+sync_routes
+sync_status=$?
+[ "$sync_status" -ne 1 ] || exit 1
+while :; do
+    if [ "$sync_status" = 2 ]; then
+        # Link deletion/recreation can race a snapshot. Process queued changes;
+        # after a quiet second, retry once and report a persistent apply error.
+        # Timed reads are provided by the root manager's BusyBox ash.
+        # shellcheck disable=SC3045
+        if ! IFS= read -r -t 1 _event <&3; then
+            sync_routes
+            sync_status=$?
+            if [ "$sync_status" -ne 0 ]; then
+                [ -z "$sync_error" ] || printf '%s\n' "$sync_error" >&2
+                exit 1
+            fi
+            continue
+        fi
+    else
+        IFS= read -r _event <&3 || break
+    fi
+    sync_routes
+    sync_status=$?
+    [ "$sync_status" -ne 1 ] || exit 1
 done
 echo 'The route event monitor stopped.' >&2
 exit 1
