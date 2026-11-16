@@ -86,16 +86,6 @@ def main():
     (stage / "bin").mkdir()
     shutil.copy2(source / "zerotier-one", stage / "bin/zerotier-one")
     shutil.copy2(BUILD / "network.jar", stage / "bin/network.jar")
-    licenses = stage / "licenses"
-    licenses.mkdir()
-    shutil.copy2(ROOT / "LICENSE", licenses / "module.txt")
-    shutil.copy2(source / "LICENSE-MPL.txt", licenses / "ZeroTier-MPL-2.0.txt")
-    # Retain bundled dependency notices as well as the daemon's MPL notice.
-    for directory in (source / "ext").rglob("*"):
-        if directory.is_file() and directory.name.lower().startswith(("license", "copying", "copyright")):
-            dest = licenses / "ext" / directory.relative_to(source / "ext")
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(directory, dest)
     properties = dict(line.split("=", 1) for line in (ROOT / "module/module.prop").read_text().splitlines() if "=" in line)
     output = ROOT / "dist" / f"zerotier-native-android-{properties['version']}-arm64.zip"
     output.parent.mkdir(exist_ok=True)

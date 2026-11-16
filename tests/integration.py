@@ -45,6 +45,8 @@ def setup_module():
     properties = dict(line.split("=", 1) for line in Path("/work/module/module.prop").read_text().splitlines() if "=" in line)
     with zipfile.ZipFile(f"/work/dist/zerotier-native-android-{properties['version']}-arm64.zip") as package:
         assert "NOTICE.txt" not in package.namelist()
+        assert not any(name.startswith("licenses/") for name in package.namelist())
+        assert "LICENSE" not in package.namelist()
         with zipfile.ZipFile(io.BytesIO(package.read("bin/network.jar"))) as adapter:
             assert "classes.dex" in adapter.namelist()
         for source in Path("/work/module").rglob("*"):
