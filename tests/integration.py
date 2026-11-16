@@ -196,6 +196,28 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn("19500:", ip("rule", "show"))
         self.assertIn("lookup 1001", ip("rule", "show"))
 
+    def test_android_rule_whitespace_does_not_create_a_conflict(self):
+        path = Path("/system/bin/ip")
+        path.unlink()
+        path.write_text('''#!/bin/sh
+case "$*" in
+    "-4 rule show"|"-6 rule show") /sbin/ip "$@" | sed 's/$/ /' ;;
+    *) exec /sbin/ip "$@" ;;
+esac
+''')
+        path.chmod(0o755)
+        try:
+            self.start_adapter()
+            time.sleep(0.2)
+            self.assertIsNone(self.adapter.poll())
+            self.adapter.terminate()
+            self.adapter.wait(timeout=10)
+            self.assertNotIn("19500:", ip("rule", "show"))
+            self.assertNotIn("19500:", ip("-6", "rule", "show"))
+        finally:
+            path.unlink()
+            path.symlink_to("/sbin/ip")
+
     def test_conflicting_table_is_preserved(self):
         ip("route", "add", "203.0.113.0/24", "dev", "wlan0", "table", "19993")
         self.adapter = subprocess.Popen(

@@ -19,8 +19,8 @@ cleanup() {
     [ -z "$monitor_pid" ] || kill "$monitor_pid" 2>/dev/null
     [ -z "$monitor_pid" ] || wait "$monitor_pid" 2>/dev/null
     for family in -4 -6; do
-        occupied=$("$ZT_IP" "$family" rule show | awk -v p="$ZT_PRIORITY:" '$1 == p')
-        expected="$ZT_PRIORITY:$(printf '\t')from all iif lo lookup $ZT_TABLE"
+        occupied=$("$ZT_IP" "$family" rule show | awk -v p="$ZT_PRIORITY:" '$1 == p { $1=$1; print }')
+        expected="$ZT_PRIORITY: from all iif lo lookup $ZT_TABLE"
         if [ "$occupied" = "$expected" ]; then
             "$ZT_IP" "$family" rule del pref "$ZT_PRIORITY" iif lo lookup "$ZT_TABLE"
         fi
@@ -53,8 +53,8 @@ sync_family() {
     wanted=$ZT_RUN/$family.wanted.routes
     actual=$ZT_RUN/$family.actual.routes
     rules=$("$ZT_IP" "$family" rule show) || return 1
-    occupied=$(printf '%s\n' "$rules" | awk -v p="$ZT_PRIORITY:" '$1 == p')
-    expected="$ZT_PRIORITY:$(printf '\t')from all iif lo lookup $ZT_TABLE"
+    occupied=$(printf '%s\n' "$rules" | awk -v p="$ZT_PRIORITY:" '$1 == p { $1=$1; print }')
+    expected="$ZT_PRIORITY: from all iif lo lookup $ZT_TABLE"
     if [ -n "$occupied" ] && [ "$occupied" != "$expected" ]; then
         echo "Policy rule priority $ZT_PRIORITY is already in use: $occupied" >&2
         return 1
