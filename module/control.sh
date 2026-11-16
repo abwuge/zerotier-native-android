@@ -7,12 +7,13 @@ zt_init
 
 stop_service() {
     if zt_running; then
+        stopping_pid=$ZT_PID
         kill -TERM "$ZT_PID" || return 1
-        # Wait for route and daemon cleanup via the supervisor's lock.
-        exec 8>"$ZT_RUN/service.lock"
-        "$ZT_BB" flock 8
-        "$ZT_BB" flock -u 8
-        exec 8>&-
+        # Android mksh closes auxiliary descriptors when executing flock.
+        # Wait only for the supervisor being stopped, including its cleanup.
+        while zt_running && [ "$ZT_PID" = "$stopping_pid" ]; do
+            sleep 0.1
+        done
     fi
 }
 
