@@ -1,0 +1,83 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and test ARM64 module
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6.0.3
+
+      - name: Check release version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          properties = dict(line.split('=', 1) for line in Path('module/module.prop').read_text().splitlines() if '=' in line)
+          expected = 'v' + properties['version']
+          actual = os.environ['GITHUB_REF_NAME']
+          if actual != expected:
+              raise SystemExit(f'Tag {actual} does not match module version {expected}')
+          PY
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Build module
+        run: ./build.sh
+
+      - name: Test packaged module
+        run: tests/run.sh
+
+      - name: Upload module
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: module-arm64
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v6.0.3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Download tested module
+        uses: actions/download-artifact@v8.0.2
+        with:
+          name: module-arm64
+          path: dist
+
+      - name: Read tag release notes
+        run: |
+          git for-each-ref --format='%(contents)' "refs/tags/$GITHUB_REF_NAME" \
+            | sed '/^-----BEGIN .*SIGNATURE-----/,$d' > "$RUNNER_TEMP/release-notes.md"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3.0.0
+        with:
+          name: ZeroTier Native for Android ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/release-notes.md
+          files: dist/*.zip
+          fail_on_unmatched_files: true
