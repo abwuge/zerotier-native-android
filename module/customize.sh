@@ -22,8 +22,8 @@ if [ -f "$OLDMOD/service.sh" ]; then
         MODDIR=$OLDMOD
         # shellcheck source=module/lib.sh
         . "$MODPATH/lib.sh"
-        zt_init
-        zt_stop
+        zerotier_init
+        zerotier_stop
     ) || abort 'Could not stop the existing service.'
 fi
 mkdir -p /data/adb/zerotier-native

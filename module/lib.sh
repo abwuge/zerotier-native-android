@@ -1,42 +1,42 @@
 #!/system/bin/sh
 
-ZT_HOME=/data/adb/zerotier-native
-ZT_RUN=$ZT_HOME/run
+ZEROTIER_HOME=/data/adb/zerotier-native
+ZEROTIER_RUN=$ZEROTIER_HOME/run
 
-zt_init() {
+zerotier_init() {
     [ "$(id -u)" = 0 ] || { echo 'Permission denied.' >&2; exit 1; }
     umask 077
-    mkdir -p "$ZT_RUN"
-    chmod 700 "$ZT_HOME" "$ZT_RUN"
-    for ZT_BB in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
-        [ ! -x "$ZT_BB" ] || break
+    mkdir -p "$ZEROTIER_RUN"
+    chmod 700 "$ZEROTIER_HOME" "$ZEROTIER_RUN"
+    for ZEROTIER_BB in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
+        [ ! -x "$ZEROTIER_BB" ] || break
     done
-    [ -x "$ZT_BB" ] || { echo 'BusyBox was not found.' >&2; exit 1; }
+    [ -x "$ZEROTIER_BB" ] || { echo 'BusyBox was not found.' >&2; exit 1; }
     export ASH_STANDALONE=1
 }
 
-zt_running() {
-    [ -r "$ZT_RUN/service.pid" ] || return 1
-    read -r ZT_PID < "$ZT_RUN/service.pid"
-    case "$ZT_PID" in ''|*[!0-9]*) return 1 ;; esac
-    [ -r "/proc/$ZT_PID/cmdline" ] || return 1
-    "$ZT_BB" tr '\000' '\n' < "/proc/$ZT_PID/cmdline" | "$ZT_BB" grep -Fxq "$MODDIR/service.sh"
+zerotier_running() {
+    [ -r "$ZEROTIER_RUN/service.pid" ] || return 1
+    read -r ZEROTIER_PID < "$ZEROTIER_RUN/service.pid"
+    case "$ZEROTIER_PID" in ''|*[!0-9]*) return 1 ;; esac
+    [ -r "/proc/$ZEROTIER_PID/cmdline" ] || return 1
+    "$ZEROTIER_BB" tr '\000' '\n' < "/proc/$ZEROTIER_PID/cmdline" | "$ZEROTIER_BB" grep -Fxq "$MODDIR/service.sh"
 }
 
-zt_stop() {
-    if zt_running; then
-        stopping_pid=$ZT_PID
-        kill -TERM "$ZT_PID" || return 1
+zerotier_stop() {
+    if zerotier_running; then
+        stopping_pid=$ZEROTIER_PID
+        kill -TERM "$ZEROTIER_PID" || return 1
         # Wait only for this supervisor so a concurrent start cannot trap stop.
-        while zt_running && [ "$ZT_PID" = "$stopping_pid" ]; do
+        while zerotier_running && [ "$ZEROTIER_PID" = "$stopping_pid" ]; do
             sleep 0.1
         done
     fi
 }
 
-zt_publish_cli() {
+zerotier_publish_cli() {
     # KernelSU adds this directory to su's PATH even without system mounts.
-    [ "$ZT_BB" = /data/adb/ksu/bin/busybox ] || return 0
+    [ "$ZEROTIER_BB" = /data/adb/ksu/bin/busybox ] || return 0
     link=/data/adb/ksu/bin/zerotier-cli
     target=$MODDIR/system/bin/zerotier-cli
     if { [ -e "$link" ] || [ -L "$link" ]; } && [ "$(readlink "$link")" != "$target" ]; then
@@ -46,7 +46,7 @@ zt_publish_cli() {
     ln -sf "$target" "$link"
 }
 
-zt_remove_cli() {
+zerotier_remove_cli() {
     link=/data/adb/ksu/bin/zerotier-cli
     if [ "$(readlink "$link")" = "$MODDIR/system/bin/zerotier-cli" ]; then
         rm -f "$link"

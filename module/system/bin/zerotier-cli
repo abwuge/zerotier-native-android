@@ -3,4 +3,4 @@
 MODDIR=/data/adb/modules/zerotier-native
 # shellcheck source=module/lib.sh
 . "$MODDIR/lib.sh"
-exec "$MODDIR/bin/zerotier-one" -q "-D$ZT_HOME" "$@"
+exec "$MODDIR/bin/zerotier-one" -q "-D$ZEROTIER_HOME" "$@"
