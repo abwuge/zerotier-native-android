@@ -1,6 +1,6 @@
 id=zerotier-native
-name=ZeroTier Native
-version=0.1.4
-versionCode=5
-author=ZeroTier Native contributors
+name=ZeroTier Native for Android
+version=0.1.5
+versionCode=6
+author=ZeroTier Native for Android contributors
 description=Run ZeroTier natively on rooted Android, without VpnService.

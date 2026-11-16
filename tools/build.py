@@ -63,7 +63,7 @@ def main():
     )
 
     properties = dict(line.split("=", 1) for line in (ROOT / "module/module.prop").read_text().splitlines() if "=" in line)
-    output = ROOT / "dist" / f"zerotier-native-{properties['version']}-arm64.zip"
+    output = ROOT / "dist" / f"zerotier-native-android-{properties['version']}-arm64.zip"
     output.parent.mkdir(exist_ok=True)
     with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as bundle:
         for path in sorted(stage.rglob("*")):

@@ -42,7 +42,7 @@ def service(*args):
 def setup_module():
     MODULE.parent.mkdir(parents=True, exist_ok=True)
     properties = dict(line.split("=", 1) for line in Path("/work/module/module.prop").read_text().splitlines() if "=" in line)
-    with zipfile.ZipFile(f"/work/dist/zerotier-native-{properties['version']}-arm64.zip") as package:
+    with zipfile.ZipFile(f"/work/dist/zerotier-native-android-{properties['version']}-arm64.zip") as package:
         for source in Path("/work/module").rglob("*"):
             if source.is_file():
                 assert package.read(str(source.relative_to("/work/module"))) == source.read_bytes(), "Rebuild the module before testing"
