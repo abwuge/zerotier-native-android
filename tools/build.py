@@ -96,13 +96,6 @@ def main():
             dest = licenses / "ext" / directory.relative_to(source / "ext")
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(directory, dest)
-    (stage / "NOTICE.txt").write_text(
-        f"ZeroTier One {VERSION}, built from unmodified upstream source.\n"
-        f"Source code: {SOURCE_URL}\nSHA-256: {SHA256}\n"
-        "Build: Alpine musl, static ARM64, without SSO or the nonfree controller.\n"
-        "Module scripts: MIT. ZeroTier: MPL-2.0. See licenses/ for dependency notices.\n"
-    )
-
     properties = dict(line.split("=", 1) for line in (ROOT / "module/module.prop").read_text().splitlines() if "=" in line)
     output = ROOT / "dist" / f"zerotier-native-android-{properties['version']}-arm64.zip"
     output.parent.mkdir(exist_ok=True)

@@ -19,7 +19,7 @@ stop_service() {
 
 start_service() {
     [ ! -f "$MODDIR/disable" ] && [ ! -f "$MODDIR/remove" ] || {
-        echo 'Enable the module in your root manager before starting it.' >&2
+        echo 'The module is disabled or marked for removal.' >&2
         return 1
     }
     "$ZT_BB" sh "$MODDIR/service.sh" </dev/null >/dev/null 2>&1 &

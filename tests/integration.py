@@ -44,6 +44,7 @@ def setup_module():
     MODULE.parent.mkdir(parents=True, exist_ok=True)
     properties = dict(line.split("=", 1) for line in Path("/work/module/module.prop").read_text().splitlines() if "=" in line)
     with zipfile.ZipFile(f"/work/dist/zerotier-native-android-{properties['version']}-arm64.zip") as package:
+        assert "NOTICE.txt" not in package.namelist()
         with zipfile.ZipFile(io.BytesIO(package.read("bin/network.jar"))) as adapter:
             assert "classes.dex" in adapter.namelist()
         for source in Path("/work/module").rglob("*"):

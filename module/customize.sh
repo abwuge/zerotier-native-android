@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-[ "$BOOTMODE" = true ] || abort 'Install from the Magisk, KernelSU, or APatch app.'
+[ "$BOOTMODE" = true ] || abort 'Unsupported installation mode.'
 [ "$ARCH" = arm64 ] || abort 'This package requires an ARM64 device.'
 [ "$API" -ge 30 ] || abort 'Android 11 or later is required.'
 [ -c /dev/net/tun ] || [ -c /dev/tun ] || abort 'The device kernel must provide TUN/TAP.'
@@ -22,5 +22,5 @@ if [ -f "$OLDMOD/control.sh" ]; then
 fi
 mkdir -p /data/adb/zerotier-native
 set_perm /data/adb/zerotier-native 0 0 0700
-ui_print 'Installed. Reboot, then run as root:'
+ui_print 'Reboot, then join a network:'
 ui_print 'zerotier-cli join NETWORK_ID'

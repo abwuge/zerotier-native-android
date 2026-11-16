@@ -3,4 +3,4 @@ name=ZeroTier Native for Android
 version=0.1.6
 versionCode=7
 author=ZeroTier Native for Android contributors
-description=Run ZeroTier natively on rooted Android, without VpnService.
+description=Native ZeroTier with automatic startup.
