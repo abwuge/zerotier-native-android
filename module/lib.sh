@@ -20,7 +20,18 @@ zt_running() {
     read -r ZT_PID < "$ZT_RUN/service.pid"
     case "$ZT_PID" in ''|*[!0-9]*) return 1 ;; esac
     [ -r "/proc/$ZT_PID/cmdline" ] || return 1
-    tr '\000' '\n' < "/proc/$ZT_PID/cmdline" | grep -Fxq "$MODDIR/service.sh"
+    "$ZT_BB" tr '\000' '\n' < "/proc/$ZT_PID/cmdline" | "$ZT_BB" grep -Fxq "$MODDIR/service.sh"
+}
+
+zt_stop() {
+    if zt_running; then
+        stopping_pid=$ZT_PID
+        kill -TERM "$ZT_PID" || return 1
+        # Wait only for this supervisor so a concurrent start cannot trap stop.
+        while zt_running && [ "$ZT_PID" = "$stopping_pid" ]; do
+            sleep 0.1
+        done
+    fi
 }
 
 zt_publish_cli() {

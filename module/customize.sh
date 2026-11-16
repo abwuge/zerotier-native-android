@@ -8,7 +8,7 @@
 
 # Root-manager unzip may create every payload file with mode 0644.
 set_perm_recursive "$MODPATH" 0 0 0755 0644
-for script in service.sh routes.sh network.sh control.sh uninstall.sh; do
+for script in service.sh routes.sh uninstall.sh; do
     set_perm "$MODPATH/$script" 0 0 0755
 done
 set_perm "$MODPATH/bin/zerotier-one" 0 0 0755
@@ -17,8 +17,14 @@ set_perm "$MODPATH/system/bin/zerotier-cli" 0 0 0755
 
 # Validate the replacement before stopping a working installation.
 OLDMOD=/data/adb/modules/zerotier-native
-if [ -f "$OLDMOD/control.sh" ]; then
-    sh "$OLDMOD/control.sh" stop || abort 'Could not stop the existing service.'
+if [ -f "$OLDMOD/service.sh" ]; then
+    (
+        MODDIR=$OLDMOD
+        # shellcheck source=module/lib.sh
+        . "$MODPATH/lib.sh"
+        zt_init
+        zt_stop
+    ) || abort 'Could not stop the existing service.'
 fi
 mkdir -p /data/adb/zerotier-native
 set_perm /data/adb/zerotier-native 0 0 0700

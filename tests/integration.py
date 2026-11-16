@@ -37,7 +37,7 @@ def cli(*args):
 
 
 def service(*args):
-    return command("/bin/busybox", "sh", str(MODULE / "control.sh"), *args, check=False)
+    return command("/bin/busybox", "sh", str(MODULE / "service.sh"), *args, check=False)
 
 
 def setup_module():
@@ -45,6 +45,8 @@ def setup_module():
     properties = dict(line.split("=", 1) for line in Path("/work/module/module.prop").read_text().splitlines() if "=" in line)
     with zipfile.ZipFile(f"/work/dist/zerotier-native-android-{properties['version']}-arm64.zip") as package:
         assert "NOTICE.txt" not in package.namelist()
+        assert "control.sh" not in package.namelist()
+        assert "network.sh" not in package.namelist()
         assert not any(name.startswith("licenses/") for name in package.namelist())
         assert "LICENSE" not in package.namelist()
         with zipfile.ZipFile(io.BytesIO(package.read("bin/network.jar"))) as adapter:
@@ -369,8 +371,6 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(0o600, (HOME / "identity.secret").stat().st_mode & 0o777)
         self.assertFalse(any("/zerotier-native/routes.sh" in p.read_text(errors="replace")
                              for p in Path("/proc").glob("[0-9]*/cmdline") if p.exists()))
-        self.assertFalse(any("/zerotier-native/network.sh" in p.read_text(errors="replace")
-                             for p in Path("/proc").glob("[0-9]*/cmdline") if p.exists()))
 
     def test_network_registration_process_restarts_and_stops(self):
         pidfile = HOME / "run/android-test.pid"
@@ -401,6 +401,9 @@ class SupervisorTests(unittest.TestCase):
 
 
 class InstallerTests(unittest.TestCase):
+    def tearDown(self):
+        service("stop")
+
     def install(self, arch):
         script = r'''
             abort() { echo "$*" >&2; exit 1; }
@@ -418,6 +421,8 @@ class InstallerTests(unittest.TestCase):
                               capture_output=True, text=True, timeout=20)
 
     def test_install_permissions_and_data_preservation(self):
+        service("start")
+        eventually(lambda: cli("status").returncode == 0, timeout=20)
         # KernelSU's unzip does not preserve the ZIP executable mode.
         for path in MODULE.rglob("*"):
             if path.is_file():
@@ -427,9 +432,10 @@ class InstallerTests(unittest.TestCase):
         config.write_text('{"settings": {}}')
         result = self.install("arm64")
         self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse((HOME / "run/service.pid").exists())
         self.assertEqual('{"settings": {}}', config.read_text())
         self.assertEqual(0o700, HOME.stat().st_mode & 0o777)
-        for executable in ("service.sh", "routes.sh", "network.sh", "control.sh", "uninstall.sh", "bin/zerotier-one", "system/bin/zerotier-cli"):
+        for executable in ("service.sh", "routes.sh", "uninstall.sh", "bin/zerotier-one", "system/bin/zerotier-cli"):
             self.assertEqual(0o755, (MODULE / executable).stat().st_mode & 0o777)
         self.assertFalse((MODULE / "skip_mount").exists())
         self.assertEqual("#MAGISK", (MODULE / "META-INF/com/google/android/updater-script").read_text().strip())
