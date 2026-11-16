@@ -6,7 +6,7 @@
 
 ## 安装与入网
 
-1. 在 Root 管理器中安装 `dist/zerotier-native-0.1.1-arm64.zip`，然后重启。
+1. 在 Root 管理器中安装 `dist/zerotier-native-0.1.2-arm64.zip`，然后重启。
 2. 打开终端，取得 Root 后使用原生 ZeroTier 命令：
 
 ```sh

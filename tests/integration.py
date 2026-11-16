@@ -289,6 +289,10 @@ class InstallerTests(unittest.TestCase):
                               capture_output=True, text=True, timeout=20)
 
     def test_install_permissions_and_data_preservation(self):
+        # KernelSU's unzip does not preserve the ZIP executable mode.
+        for path in MODULE.rglob("*"):
+            if path.is_file():
+                path.chmod(0o644)
         HOME.mkdir(exist_ok=True)
         config = HOME / "local.conf"
         config.write_text('{"settings": {}}')
