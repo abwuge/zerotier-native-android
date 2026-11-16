@@ -1,0 +1,13 @@
+#!/sbin/sh
+umask 022
+OUTFD=$2
+ZIPFILE=$3
+export OUTFD ZIPFILE
+if [ ! -f /data/adb/magisk/util_functions.sh ]; then
+    echo 'Install this module from your root manager app.'
+    exit 1
+fi
+# shellcheck disable=SC1091
+. /data/adb/magisk/util_functions.sh
+install_module
+exit 0

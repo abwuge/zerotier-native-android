@@ -1,0 +1,4 @@
+# Agent workspace and generated module packages
+/.agent/
+/dist/
+__pycache__/
