@@ -57,17 +57,6 @@ case "$interface_naming" in
     default) ui_print '已选择 ZeroTier 默认命名' ;;
 esac
 
-# Validate the replacement before stopping a working installation.
-OLDMOD=/data/adb/modules/zerotier-native
-if [ -f "$OLDMOD/service.sh" ]; then
-    (
-        MODDIR=$OLDMOD
-        # shellcheck source=module/lib.sh
-        . "$MODPATH/lib.sh"
-        zerotier_init
-        zerotier_stop
-    ) || abort 'Could not stop the existing service.'
-fi
 mkdir -p /data/adb/zerotier-native
 set_perm /data/adb/zerotier-native 0 0 0700
 ui_print 'Reboot, then join a network:'

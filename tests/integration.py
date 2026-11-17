@@ -412,7 +412,7 @@ class InstallerTests(unittest.TestCase):
     def tearDown(self):
         service("stop")
 
-    def install(self, arch):
+    def install(self, arch, module_path=MODULE):
         script = r'''
             abort() { echo "$*" >&2; exit 1; }
             ui_print() { echo "$*"; }
@@ -425,26 +425,32 @@ class InstallerTests(unittest.TestCase):
             . "$MODPATH/customize.sh"
         '''
         return subprocess.run(["/bin/busybox", "sh", "-c", script],
-                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, API="36", MODPATH=str(MODULE)),
+                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, API="36", MODPATH=str(module_path)),
                               capture_output=True, text=True, timeout=20)
 
     def test_install_permissions_and_data_preservation(self):
         service("start")
         eventually(lambda: cli("status").returncode == 0, timeout=20)
-        # KernelSU's unzip does not preserve the ZIP executable mode.
-        for path in MODULE.rglob("*"):
+        supervisor = (HOME / "run/service.pid").read_text()
+        daemon = (HOME / "zerotier-one.pid").read_text()
+        staged = Path("/data/adb/modules_update/zerotier-native")
+        shutil.copytree(MODULE, staged, dirs_exist_ok=True)
+        # KernelSU installs updates in a staging directory without stopping the active module.
+        for path in staged.rglob("*"):
             if path.is_file():
                 path.chmod(0o644)
         HOME.mkdir(exist_ok=True)
         config = HOME / "local.conf"
         config.write_text('{"settings": {}}')
-        result = self.install("arm64")
+        result = self.install("arm64", staged)
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertFalse((HOME / "run/service.pid").exists())
+        self.assertEqual(supervisor, (HOME / "run/service.pid").read_text())
+        self.assertEqual(daemon, (HOME / "zerotier-one.pid").read_text())
+        self.assertEqual(0, cli("status").returncode)
         self.assertEqual('{"settings": {}}', config.read_text())
         self.assertEqual(0o700, HOME.stat().st_mode & 0o777)
         for executable in ("service.sh", "routes.sh", "uninstall.sh", "bin/zerotier-one", "system/bin/zerotier-cli"):
-            self.assertEqual(0o755, (MODULE / executable).stat().st_mode & 0o777)
+            self.assertEqual(0o755, (staged / executable).stat().st_mode & 0o777)
         self.assertFalse((MODULE / "skip_mount").exists())
         self.assertEqual("#MAGISK", (MODULE / "META-INF/com/google/android/updater-script").read_text().strip())
 
