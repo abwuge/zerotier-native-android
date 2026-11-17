@@ -3,15 +3,30 @@
 ZEROTIER_HOME=/data/adb/zerotier-native
 ZEROTIER_RUN=$ZEROTIER_HOME/run
 
+# Android stores the selected system language here; other locales use English.
+ZEROTIER_LANGUAGE=$(getprop persist.sys.locale 2>/dev/null)
+[ -n "$ZEROTIER_LANGUAGE" ] || ZEROTIER_LANGUAGE=$(getprop ro.product.locale 2>/dev/null)
+
+zerotier_message() {
+    case "$ZEROTIER_LANGUAGE" in
+        zh|zh-*|zh_*) message=$2 ;;
+        *) message=$1 ;;
+    esac
+    shift 2
+    # Formats are module-owned strings; arguments are passed without evaluation.
+    # shellcheck disable=SC2059
+    printf "$message\n" "$@"
+}
+
 zerotier_init() {
-    [ "$(id -u)" = 0 ] || { echo 'Permission denied.' >&2; exit 1; }
+    [ "$(id -u)" = 0 ] || { zerotier_message 'Permission denied. Run as root.' '权限不足，请以 root 身份运行。' >&2; exit 1; }
     umask 077
     mkdir -p "$ZEROTIER_RUN"
     chmod 700 "$ZEROTIER_HOME" "$ZEROTIER_RUN"
     for ZEROTIER_BB in /data/adb/magisk/busybox /data/adb/ksu/bin/busybox /data/adb/ap/bin/busybox; do
         [ ! -x "$ZEROTIER_BB" ] || break
     done
-    [ -x "$ZEROTIER_BB" ] || { echo 'BusyBox was not found.' >&2; exit 1; }
+    [ -x "$ZEROTIER_BB" ] || { zerotier_message 'BusyBox was not found.' '未找到 BusyBox。' >&2; exit 1; }
     export ASH_STANDALONE=1
 }
 
@@ -40,7 +55,7 @@ zerotier_publish_cli() {
     link=/data/adb/ksu/bin/zerotier-cli
     target=$MODDIR/system/bin/zerotier-cli
     if { [ -e "$link" ] || [ -L "$link" ]; } && [ "$(readlink "$link")" != "$target" ]; then
-        echo 'An existing zerotier-cli command belongs to another installation.' >&2
+        zerotier_message 'An existing zerotier-cli command belongs to another installation.' '已有的 zerotier-cli 命令属于其他安装。' >&2
         return 1
     fi
     ln -sf "$target" "$link"
@@ -61,7 +76,7 @@ zerotier_configure_interface_name() (
     case "$interface_naming" in
         ethernet) interface_name=ethzt${network_id#??????} ;;
         default) interface_name= ;;
-        *) echo 'Invalid interface naming selection.' >&2; exit 1 ;;
+        *) zerotier_message 'Invalid interface naming selection.' '网卡命名选项无效。' >&2; exit 1 ;;
     esac
     exec 8>"$ZEROTIER_RUN/devicemap.lock"
     "$ZEROTIER_BB" flock 8 || exit 1
@@ -73,7 +88,7 @@ zerotier_configure_interface_name() (
         END { if (!conflict && interface_name != "") print network_id "=" interface_name }
     ' "$ZEROTIER_HOME/devicemap" > "$ZEROTIER_RUN/devicemap.new" || {
         rm -f "$ZEROTIER_RUN/devicemap.new"
-        echo "Interface name already assigned: $interface_name" >&2
+        zerotier_message 'Interface name already assigned: %s' '网卡名称已被占用：%s' "$interface_name" >&2
         exit 1
     }
     mv -f "$ZEROTIER_RUN/devicemap.new" "$ZEROTIER_HOME/devicemap"

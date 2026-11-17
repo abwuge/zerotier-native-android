@@ -57,7 +57,7 @@ sync_family() {
     occupied=$(printf '%s\n' "$rules" | awk -v p="$ZEROTIER_PRIORITY:" '$1 == p { $1=$1; print }')
     expected="$ZEROTIER_PRIORITY: from all iif lo lookup $ZEROTIER_TABLE"
     if [ -n "$occupied" ] && [ "$occupied" != "$expected" ]; then
-        echo "Policy rule priority $ZEROTIER_PRIORITY is already in use: $occupied" >&2
+        zerotier_message 'Policy rule priority %s is already in use: %s' '策略路由优先级 %s 已被占用：%s' "$ZEROTIER_PRIORITY" "$occupied" >&2
         return 1
     fi
 
@@ -78,7 +78,7 @@ sync_family() {
             }
         }
     ' < "$ZEROTIER_RUN/all.routes" > "$ZEROTIER_RUN/table.routes" || {
-        echo "Route table $ZEROTIER_TABLE contains routes owned by another service." >&2
+        zerotier_message 'Route table %s contains routes owned by another service.' '路由表 %s 中存在其他服务的路由。' "$ZEROTIER_TABLE" >&2
         return 1
     }
     normalize 0 < "$ZEROTIER_RUN/table.routes" > "$actual"
@@ -150,5 +150,5 @@ while :; do
     sync_status=$?
     [ "$sync_status" -ne 1 ] || exit 1
 done
-echo 'The route event monitor stopped.' >&2
+zerotier_message 'The route event monitor stopped.' '路由事件监听已停止。' >&2
 exit 1

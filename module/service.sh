@@ -10,7 +10,7 @@ case "${1:-run}" in
     start|restart)
         [ "$1" != restart ] || zerotier_stop || exit 1
         [ ! -f "$MODDIR/disable" ] && [ ! -f "$MODDIR/remove" ] || {
-            echo 'The module is disabled or marked for removal.' >&2
+            zerotier_message 'The module is disabled or marked for removal.' '模块已禁用或标记为卸载。' >&2
             exit 1
         }
         "$ZEROTIER_BB" sh "$MODDIR/service.sh" run </dev/null >/dev/null 2>&1 &
@@ -51,7 +51,7 @@ trap cleanup EXIT
 exec >>"$ZEROTIER_HOME/service.log" 2>&1
 
 if [ ! -c /dev/net/tun ] && [ ! -c /dev/tun ]; then
-    echo 'TUN/TAP device is missing; enable CONFIG_TUN in the device kernel.'
+    zerotier_message 'TUN/TAP device is missing; enable CONFIG_TUN in the device kernel.' '未找到 TUN/TAP 设备，请在设备内核中启用 CONFIG_TUN。'
     exit 1
 fi
 zerotier_publish_cli || exit 1
@@ -68,7 +68,7 @@ restart_loop() {
         wait "$process_pid"
         result=$?
         process_pid=
-        echo "${1##*/} exited ($result); restarting in 5 seconds."
+        zerotier_message '%s exited (%s); restarting in 5 seconds.' '%s 已退出（%s），将在 5 秒后重启。' "${1##*/}" "$result"
         sleep 5 9>&- &
         delay_pid=$!
         wait "$delay_pid"

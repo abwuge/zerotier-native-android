@@ -72,6 +72,12 @@ def setup_module():
                            'echo "$$" > /data/adb/zerotier-native/run/android-test.pid\n'
                            'exec sleep 3600\n')
     app_process.chmod(0o755)
+    getprop = Path("/system/bin/getprop")
+    getprop.write_text('#!/bin/sh\ncase "$1" in\n'
+                       'persist.sys.locale) printf "%s" "$ANDROID_TEST_LOCALE" ;;\n'
+                       'ro.product.locale) printf "%s" "$ANDROID_TEST_PRODUCT_LOCALE" ;;\n'
+                       'esac\n')
+    getprop.chmod(0o755)
     getevent = Path("/system/bin/getevent")
     getevent.write_text('#!/bin/sh\nprintf "EV_KEY KEY_VOLUMEUP DOWN\\n"\n')
     getevent.chmod(0o755)
@@ -412,7 +418,7 @@ class InstallerTests(unittest.TestCase):
     def tearDown(self):
         service("stop")
 
-    def install(self, arch, module_path=MODULE):
+    def install(self, arch, module_path=MODULE, locale="en-US", product_locale=""):
         script = r'''
             abort() { echo "$*" >&2; exit 1; }
             ui_print() { echo "$*"; }
@@ -425,7 +431,8 @@ class InstallerTests(unittest.TestCase):
             . "$MODPATH/customize.sh"
         '''
         return subprocess.run(["/bin/busybox", "sh", "-c", script],
-                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, API="36", MODPATH=str(module_path)),
+                              env=dict(os.environ, BOOTMODE="true", ARCH=arch, API="36", MODPATH=str(module_path),
+                                       ANDROID_TEST_LOCALE=locale, ANDROID_TEST_PRODUCT_LOCALE=product_locale),
                               capture_output=True, text=True, timeout=20)
 
     def test_install_permissions_and_data_preservation(self):
@@ -485,6 +492,33 @@ class InstallerTests(unittest.TestCase):
             self.assertFalse((MODULE / ".volume-key-events").exists())
         finally:
             reader.write_text(original)
+
+    def test_localized_installation_and_errors(self):
+        for locale, product_locale, chinese in (
+            ("en-US", "zh-CN", False), ("zh-CN", "", True),
+            ("zh_TW", "", True), ("fr-FR", "", False),
+            ("", "zh-CN", True), ("", "", False),
+        ):
+            with self.subTest(locale=locale, product_locale=product_locale):
+                result = self.install("arm64", locale=locale, product_locale=product_locale)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertIn("音量" if chinese else "Volume Up", result.stdout)
+                self.assertIn("已选择" if chinese else "Selected", result.stdout)
+                self.assertIn("zerotier-cli join NETWORK_ID", result.stdout)
+                description = (MODULE / "module.prop").read_text()
+                self.assertIn("原生 ZeroTier" if chinese else "Native ZeroTier", description)
+                result = self.install("x86", locale=locale, product_locale=product_locale)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("此安装包需要 ARM64" if chinese else "requires an ARM64", result.stderr)
+        # A separate formatting check keeps literal arguments out of shell evaluation.
+        result = subprocess.run(
+            ["/bin/busybox", "sh", "-c",
+             '. "$1/lib.sh"; zerotier_message "Name: %s" "名称：%s" "value%with spaces"',
+             "sh", str(MODULE)],
+            env=dict(os.environ, ANDROID_TEST_LOCALE="zh-CN"),
+            capture_output=True, text=True, timeout=20)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("名称：value%with spaces\n", result.stdout)
 
     def test_unsupported_architecture_is_rejected(self):
         result = self.install("x86")
